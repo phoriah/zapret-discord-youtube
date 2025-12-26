@@ -63,8 +63,8 @@ jobs:
               # Используем wget для проверки и загрузки одним запросом
               if wget --spider --quiet "$url" 2>/dev/null; then
                 echo "  📥 $file"
-                wget -O "bin/$file" "$url" &
-                ((updated++))
+                wget -O "bin/$file" "$url"
+                let updated++
               else
                 echo "  ⏭️  $file (not in bol-van)"
               fi
