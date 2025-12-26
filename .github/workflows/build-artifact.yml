@@ -63,15 +63,14 @@ jobs:
               # Используем wget для проверки и загрузки одним запросом
               if wget --spider --quiet "$url" 2>/dev/null; then
                 echo "  📥 $file"
-                wget -O "bin/$file" "$url"
-                let updated++
+                wget -O "bin/$file" "$url" & ((updated++))
               else
                 echo "  ⏭️  $file (not in bol-van)"
               fi
             done
             
             # Ждем завершения всех фоновых загрузок
-            wait
+            wait || true
             echo "✅ Updated $updated binaries"
           fi
 
