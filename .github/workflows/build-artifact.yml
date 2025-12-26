@@ -56,22 +56,22 @@ jobs:
               [ -f "$f" ] && files+=("$(basename "$f")")
             done
             
-            updated=0
+
             for file in "${files[@]}"; do
               url="https://github.com/bol-van/zapret-win-bundle/raw/master/zapret-winws/$file"
               
               # Используем wget для проверки и загрузки одним запросом
               if wget --spider --quiet "$url" 2>/dev/null; then
                 echo "  📥 $file"
-                wget -O "bin/$file" "$url"
+                wget -q -O "bin/$file" "$url"
               else
                 echo "  ⏭️  $file (not in bol-van)"
               fi
             done
             
             # Ждем завершения всех фоновых загрузок
-            wait || true
-            echo "✅ Updated $updated binaries"
+            wait
+            echo "✅ Updated binaries"
           fi
 
       - name: 🐍 Run AS Parser (V3nilla)
@@ -100,10 +100,10 @@ jobs:
           cp -a source/. final/
           rm -rf final/.git
 
-          build_date=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          build_date=$(date +%Y%m%d-%H%M%S)
           artifact_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           # Создаем простой отчет о сборке
-          echo "Auto Build completed: $build_date" > final/build_info.txt
+          echo "Auto Build completed: $build_date UTC" > final/build_info.txt
           echo "Artifact: $artifact_url" >> final/build_info.txt
           
           # Показываем структуру для проверки
@@ -113,7 +113,7 @@ jobs:
       - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zapret-${{ github.run_number }}-$(date +%Y%m%d-%H%M)
+          name: zapret-${{ github.run_number }}-${{ steps.timestamp.outputs.filename }}
           path: zapret-build/final/
           if-no-files-found: error
 
