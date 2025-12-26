@@ -61,11 +61,10 @@ jobs:
               url="https://github.com/bol-van/zapret-win-bundle/raw/master/zapret-winws/$file"
               
               # Используем wget для проверки и загрузки одним запросом
-              if wget --spider --quiet "$url" 2>/dev/null || true; then
+              if wget --spider --quiet "$url" 2>/dev/null; then
                 echo "  📥 $file"
-                wget -q -O "bin/$file" "$url" &
+                wget -O "bin/$file" "$url" &
                 ((updated++))
-                echo "  X $file"
               else
                 echo "  ⏭️  $file (not in bol-van)"
               fi
