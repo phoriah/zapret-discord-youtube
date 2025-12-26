@@ -1,0 +1,147 @@
+name: Zapret Auto Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_commit:
+        description: 'Авто-коммит изменений?'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'bin/**'
+      - 'lists/ipset-all.txt'
+      - '.github/workflows/*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    
+    steps:
+      - name: ⬇️ Clone source repo
+        run: |
+          mkdir -p zapret-build
+          cd zapret-build
+          
+          git clone --depth 1 --filter=tree:0 \
+            --sparse https://github.com/Flowseal/zapret-discord-youtube.git source
+          
+          cd source
+          git sparse-checkout set --no-cone '*' '!.github'
+          git checkout main
+          
+          echo "✅ Source cloned ($(find . -type f | wc -l) files)"
+          
+
+      - name: 🔄 Sync binaries (bol-van)
+        run: |
+          cd zapret-build/source
+          
+          if [ -d "bin" ]; then
+            echo "🔧 Updating binaries..."
+            
+            # Создаем список файлов для параллельной загрузки
+            files=()
+            for f in bin/*; do
+              [ -f "$f" ] && files+=("$(basename "$f")")
+            done
+            
+            updated=0
+            for file in "${files[@]}"; do
+              url="https://github.com/bol-van/zapret-win-bundle/raw/master/zapret-winws/$file"
+              
+              # Используем wget для проверки и загрузки одним запросом
+              if wget --spider --quiet "$url" 2>/dev/null; then
+                echo "  📥 $file"
+                wget -q -O "bin/$file" "$url" &
+                ((updated++))
+              else
+                echo "  ⏭️  $file (not in bol-van)"
+              fi
+            done
+            
+            # Ждем завершения всех фоновых загрузок
+            wait
+            echo "✅ Updated $updated binaries"
+          fi
+
+      - name: 🐍 Run AS Parser (V3nilla)
+        run: |
+          cd /tmp
+          # Скачиваем и запускаем парсер
+          curl -L -o AS_Parser.py https://raw.githubusercontent.com/V3nilla/IPSets-For-Bypass-in-Russia/main/AS%20Parser/AS_Parser.py
+          echo "⚡ Generating IPset..."
+          start_time=$(date +%s)
+          python3 AS_Parser.py
+          end_time=$(date +%s)
+          
+          if [ -f "all_prefixes_aggregated.txt" ]; then
+            mv all_prefixes_aggregated.txt $GITHUB_WORKSPACE/zapret-build/source/lists/ipset-all.txt
+            echo "✅ IPset: $(wc -l < all_prefixes_aggregated.txt) prefixes ($((end_time - start_time))s)"
+          else
+            echo "❌ Parser did not create output file!"
+            exit 1
+          fi
+
+      - name: 📦 Package final build
+        run: |
+          cd zapret-build
+          
+          mkdir -p final
+          cp -a source/. final/
+          rm -rf final/.git
+
+          build_date=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          artifact_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # Создаем простой отчет о сборке
+          echo "Auto Build completed: $build_date" > final/build_info.txt
+          echo "Artifact: $artifact_url" >> final/build_info.txt
+          
+          # Показываем структуру для проверки
+          echo "=== Final structure ==="
+          find final -type f | sort
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zapret-${{ github.run_number }}-$(date +%Y%m%d-%H%M)
+          path: zapret-build/final/
+          if-no-files-found: error
+
+      - name: 💾 Auto-commit (optional)
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          inputs.auto_commit == 'true'
+        run: |
+          cd zapret-build/source
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add bin/ lists/ipset-all.txt 2>/dev/null || true
+          
+          if git diff --staged --quiet; then
+            echo "⚠️  No changes to commit"
+          else
+            git commit -m "Auto-update: binaries and IPset [$GITHUB_RUN_NUMBER]
+            
+            • Updated ${UPDATED_BINARIES:-0} binaries
+            • IPset: ${IPSET_LINES:-0} prefixes
+            • Build: $GITHUB_RUN_ID
+            • Source: $SOURCE_COMMIT
+            
+            [skip ci]"
+            
+            git push
+            echo "✅ Changes committed"
+          fi
