@@ -100,10 +100,9 @@ jobs:
           cp -a source/. final/
           rm -rf final/.git
 
-          build_date=$(date +%Y%m%d-%H%M%S)
           artifact_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           # Создаем простой отчет о сборке
-          echo "Auto Build completed: $build_date UTC" > final/build_info.txt
+          echo "Auto Build completed: $(date)" > final/build_info.txt
           echo "Artifact: $artifact_url" >> final/build_info.txt
           
           # Показываем структуру для проверки
@@ -112,8 +111,10 @@ jobs:
 
       - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
+        env:
+          TIMESTAMP: $(date +%Y%m%d-%H%M%S)
         with:
-          name: zapret-${{ github.run_number }}-${{ steps.timestamp.outputs.filename }}
+          name: zapret-${{ github.run_id }}-${{ env.TIMESTAMP }}
           path: zapret-build/final/
           if-no-files-found: error
 
