@@ -65,6 +65,7 @@ jobs:
                 echo "  📥 $file"
                 wget -q -O "bin/$file" "$url" &
                 ((updated++))
+                echo "  X $file"
               else
                 echo "  ⏭️  $file (not in bol-van)"
               fi
